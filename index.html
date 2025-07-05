@@ -766,6 +766,17 @@
             50% { opacity: 1; }
         }
 
+        @keyframes auraPulse {
+            0%, 100% { 
+                filter: drop-shadow(0 0 50px #00ff88) drop-shadow(0 0 100px #00ffcc) drop-shadow(0 0 150px #00ffff);
+                transform: scale(1);
+            }
+            50% { 
+                filter: drop-shadow(0 0 80px #00ff88) drop-shadow(0 0 150px #00ffcc) drop-shadow(0 0 200px #00ffff);
+                transform: scale(1.05);
+            }
+        }
+
         .star {
             position: absolute;
             background: #fff;
@@ -1142,12 +1153,12 @@
         <div id="credits">
             <div class="creditsContent">
                 <h2>VOID DRIFTERS</h2>
-                <p>A space combat adventure game</p>
-                <p>Developed with passion for epic space battles</p>
-                <p>Featuring multiple spaceships, weapons, and enemies</p>
+                <p>A space combat game made by Sinhal Joshi</p>
+                <p>After Deescalatting and Preventing The 9/11 Mr. Joshi has Taken Intrest To Resolve Galactic Wars</p>
+                <p>With His Wast Fortune He Now Roams The Galaxy With His Fleet Of Spaceships Looking For Any Racist Aliens,After He Find One, He Kills Them And Fuck THeir Wives So Thier Kids Know Not To Follow In Daddy's Footsteps</p>
                 <div class="socialLinks">
-                    <a href="https://github.com/yourusername" target="_blank" class="socialLink">GitHub</a>
-                    <a href="https://linkedin.com/in/yourusername" target="_blank" class="socialLink">LinkedIn</a>
+                    <a href="https://github.com/Zephyr4772" target="_blank" class="socialLink">GitHub</a>
+                    <a href="https://www.linkedin.com/in/sinhal-joshi-244603275/" target="_blank" class="socialLink">LinkedIn</a>
                 </div>
                 <button class="menuButton" id="backToMenuFromCredits" style="margin-top: 30px;">BACK TO MENU</button>
             </div>
@@ -2155,15 +2166,15 @@ GOOD LUCK, PILOT!`);
                 switch(currentWeapon) {
                     case 'normal':
                         this.fireNormal();
-                        this.weaponCooldowns.normal = 90; // much faster
+                        this.weaponCooldowns.normal = 150; // increased from 90
                         break;
                     case 'dual':
                         this.fireDual();
-                        this.weaponCooldowns.dual = 120; // much faster
+                        this.weaponCooldowns.dual = 200; // increased from 120
                         break;
                     case 'shotgun':
                         this.fireShotgun();
-                        this.weaponCooldowns.shotgun = 220; // much faster
+                        this.weaponCooldowns.shotgun = 350; // increased from 220
                         break;
                 }
                 this.playSound('shoot');
@@ -3309,7 +3320,7 @@ GOOD LUCK, PILOT!`);
                     creditsDiv.style.left = '0';
                     creditsDiv.style.width = '100%';
                     creditsDiv.style.height = '100%';
-                    creditsDiv.style.background = 'black';
+                    creditsDiv.style.background = 'radial-gradient(ellipse at center, #0a0a1a 0%, #1a1a2e 20%, #16213e 40%, #0f0f23 60%, #0a1026 80%, #000000 100%), linear-gradient(135deg, rgba(120, 0, 255, 0.1) 0%, rgba(0, 255, 200, 0.1) 25%, rgba(255, 0, 150, 0.1) 50%, rgba(0, 170, 255, 0.1) 75%, rgba(255, 0, 255, 0.1) 100%)';
                     creditsDiv.style.overflow = 'hidden';
                     creditsDiv.style.zIndex = '9999';
                     creditsDiv.innerHTML = `
@@ -3318,11 +3329,14 @@ GOOD LUCK, PILOT!`);
                             <p style="font-size: 1.8rem; margin-bottom: 40px; color: #fff; max-width: 900px; margin-left: auto; margin-right: auto;">This game was built out of sheer curiosity, a keyboard, and an unreasonable amount of caffeine. It's an indie project packed with drifting spaceships, hostile aliens, explosive powerups, and boss fights that may or may not have been over-engineered for no reason.</p>
                             <p style="font-size: 1.5rem; margin-bottom: 40px; color: #fff; max-width: 800px; margin-left: auto; margin-right: auto;">I'm Sinhal Joshi, a passionate programmer with no clear goal and way too much free time. I like building things that serve absolutely no practical purpose—but are a blast to mess with anyway.</p>
                             <p style="font-size: 1.3rem; margin-bottom: 40px; color: #fff; max-width: 800px; margin-left: auto; margin-right: auto;">If you're into unpredictable, wildly unnecessary, and often chaotic digital experiments, you'll probably enjoy the rest of my project portfolio too.</p>
-                            <img src="sinhal.png" style="width: 300px; height: auto; margin-bottom: 40px;" />
+                            <div style="text-align: center; margin-bottom: 40px;">
+                                <div style="font-size: 2.5rem; color: #00ff88; margin-bottom: 20px; text-shadow: 0 0 30px #00ff88; font-weight: bold;">AURA+++++</div>
+                                <img src="sinhal.png" style="width: 300px; height: auto; filter: drop-shadow(0 0 50px #00ff88) drop-shadow(0 0 100px #00ffcc) drop-shadow(0 0 150px #00ffff); animation: auraPulse 3s ease-in-out infinite;" />
+                            </div>
                             <div style="font-size: 1.2rem; color: #fff; margin-bottom: 30px;">Connect with the creator:</div>
                             <div style="margin-bottom: 60px;">
-                                <a href="https://github.com/yourusername" target="_blank" style="color: #00ff88; font-size: 2rem; margin: 0 30px; text-decoration: none;">GitHub</a>
-                                <a href="https://linkedin.com/in/yourusername" target="_blank" style="color: #00ff88; font-size: 2rem; margin: 0 30px; text-decoration: none;">LinkedIn</a>
+                                <a href="https://github.com/Zephyr4772" target="_blank" style="color: #00ff88; font-size: 2rem; margin: 0 30px; text-decoration: none;">GitHub</a>
+                                <a href="https://www.linkedin.com/in/sinhal-joshi-244603275/" target="_blank" style="color: #00ff88; font-size: 2rem; margin: 0 30px; text-decoration: none;">LinkedIn</a>
                             </div>
                             <div style="font-size: 1.5rem; color: #fff; margin-bottom: 100px;">May the drift be with you!</div>
                         </div>
@@ -3335,7 +3349,7 @@ GOOD LUCK, PILOT!`);
                 credits.style.transition = 'none';
                 credits.style.bottom = '-100%';
                 setTimeout(() => {
-                    credits.style.transition = 'bottom 20s linear';
+                    credits.style.transition = 'bottom 60s linear'; // increased from 30s to 60s
                     credits.style.bottom = '100%';
                 }, 100);
                 setTimeout(() => {
@@ -3346,7 +3360,7 @@ GOOD LUCK, PILOT!`);
                         this.backgroundMusic.play().catch(e => console.log('Background music resume blocked'));
                     }
                     this.showMainMenu();
-                }, 22000);
+                }, 62000); // increased from 22000 to 62000 to match the new duration
             }
 
         }
@@ -3359,8 +3373,8 @@ GOOD LUCK, PILOT!`);
                 this.vy = 0;
                 this.angle = 0;
                 this.size = 32; // Increased from 25 for all spaceships
-                this.maxSpeed = 5; // toned down from 7
-                this.thrustPower = 0.4; // toned down from 0.5
+                this.maxSpeed = 3; // toned down from 5
+                this.thrustPower = 0.25; // toned down from 0.4
                 this.drag = 0.99; // increased drag for smoother movement
                 this.thrustParticleTimer = 0;
                 
@@ -3389,8 +3403,8 @@ GOOD LUCK, PILOT!`);
                 
                 // Thruster boost (Shift key)
                 if (keys['shift']) {
-                    thrustX *= 3.0;
-                    thrustY *= 3.0;
+                    thrustX *= 2.0; // reduced from 3.0
+                    thrustY *= 2.0; // reduced from 3.0
                 }
                 
                 // Apply thrust
@@ -3516,8 +3530,8 @@ GOOD LUCK, PILOT!`);
                 this.x = x;
                 this.y = y;
                 // Speed increases with level
-                const baseSpeed = 4;
-                const speedMultiplier = 1 + (level - 1) * 0.3;
+                const baseSpeed = 2.5; // reduced from 4
+                const speedMultiplier = 1 + (level - 1) * 0.2; // reduced from 0.3
                 this.vx = (Math.random() - 0.5) * baseSpeed * speedMultiplier;
                 this.vy = (Math.random() - 0.5) * baseSpeed * speedMultiplier;
                 this.size = Math.random() * 20 + 10;
@@ -3554,7 +3568,7 @@ GOOD LUCK, PILOT!`);
                 }
                 
                 // Limit speed (increases with level)
-                const maxSpeed = 3 + (this.level - 1) * 0.5;
+                const maxSpeed = 2 + (this.level - 1) * 0.3; // reduced from 3 + 0.5
                 const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
                 if (speed > maxSpeed) {
                     this.vx = (this.vx / speed) * maxSpeed;
@@ -3588,8 +3602,8 @@ GOOD LUCK, PILOT!`);
             constructor(x, y) {
                 this.x = x;
                 this.y = y;
-                this.vx = (Math.random() - 0.5) * 3;
-                this.vy = (Math.random() - 0.5) * 3;
+                this.vx = (Math.random() - 0.5) * 2; // reduced from 3
+                this.vy = (Math.random() - 0.5) * 2; // reduced from 3
                 this.size = 25; // Increased from 20
                 this.angle = 0;
                 this.pulseTimer = 0;
@@ -3610,20 +3624,20 @@ GOOD LUCK, PILOT!`);
                 const distance = Math.sqrt(dx * dx + dy * dy);
                 
                 if (distance > 0) {
-                    this.vx += (dx / distance) * 0.05;
-                    this.vy += (dy / distance) * 0.05;
+                    this.vx += (dx / distance) * 0.03; // reduced from 0.05
+                    this.vy += (dy / distance) * 0.03; // reduced from 0.05
                 }
                 
                 // Limit speed
                 const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-                if (speed > 4) {
-                    this.vx = (this.vx / speed) * 4;
-                    this.vy = (this.vy / speed) * 4;
+                if (speed > 3) { // reduced from 4
+                    this.vx = (this.vx / speed) * 3; // reduced from 4
+                    this.vy = (this.vy / speed) * 3; // reduced from 4
                 }
                 
                 this.x += this.vx;
                 this.y += this.vy;
-                this.angle += 0.1;
+                this.angle += 0.03; // reduced from 0.1
                 this.pulseTimer += deltaTime;
                 
                 // Wrap around screen
@@ -3716,8 +3730,8 @@ GOOD LUCK, PILOT!`);
             constructor(x, y) {
                 this.x = x;
                 this.y = y;
-                this.vx = (Math.random() - 0.5) * 2;
-                this.vy = (Math.random() - 0.5) * 2;
+                this.vx = (Math.random() - 0.5) * 1.5; // reduced from 2
+                this.vy = (Math.random() - 0.5) * 1.5; // reduced from 2
                 this.size = 23; // Increased from 18
                 this.angle = 0;
                 this.pulseTimer = 0;
@@ -3740,20 +3754,20 @@ GOOD LUCK, PILOT!`);
                 const distance = Math.sqrt(dx * dx + dy * dy);
                 
                 if (distance > 0) {
-                    this.vx += (dx / distance) * 0.03;
-                    this.vy += (dy / distance) * 0.03;
+                    this.vx += (dx / distance) * 0.02; // reduced from 0.03
+                    this.vy += (dy / distance) * 0.02; // reduced from 0.03
                 }
                 
                 // Limit speed
                 const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-                if (speed > 3) {
-                    this.vx = (this.vx / speed) * 3;
-                    this.vy = (this.vy / speed) * 3;
+                if (speed > 2.5) { // reduced from 3
+                    this.vx = (this.vx / speed) * 2.5; // reduced from 3
+                    this.vy = (this.vy / speed) * 2.5; // reduced from 3
                 }
                 
                 this.x += this.vx;
                 this.y += this.vy;
-                this.angle += 0.08;
+                this.angle += 0.025; // reduced from 0.08
                 this.pulseTimer += deltaTime;
                 this.shootTimer += deltaTime;
                 
@@ -3815,8 +3829,8 @@ GOOD LUCK, PILOT!`);
             constructor(x, y) {
                 this.x = x;
                 this.y = y;
-                this.vx = (Math.random() - 0.5) * 4;
-                this.vy = (Math.random() - 0.5) * 4;
+                this.vx = (Math.random() - 0.5) * 2.5; // reduced from 4
+                this.vy = (Math.random() - 0.5) * 2.5; // reduced from 4
                 this.size = 28; // Increased from 22
                 this.angle = 0;
                 this.pulseTimer = 0;
@@ -3840,20 +3854,20 @@ GOOD LUCK, PILOT!`);
                 const distance = Math.sqrt(dx * dx + dy * dy);
                 
                 if (distance > 0) {
-                    this.vx += (dx / distance) * 0.08;
-                    this.vy += (dy / distance) * 0.08;
+                    this.vx += (dx / distance) * 0.05; // reduced from 0.08
+                    this.vy += (dy / distance) * 0.05; // reduced from 0.08
                 }
                 
                 // Limit speed
                 const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-                if (speed > 5) {
-                    this.vx = (this.vx / speed) * 5;
-                    this.vy = (this.vy / speed) * 5;
+                if (speed > 3.5) { // reduced from 5
+                    this.vx = (this.vx / speed) * 3.5; // reduced from 5
+                    this.vy = (this.vy / speed) * 3.5; // reduced from 5
                 }
                 
                 this.x += this.vx;
                 this.y += this.vy;
-                this.angle += 0.12;
+                this.angle += 0.04; // reduced from 0.12
                 this.pulseTimer += deltaTime;
                 
                 // Explode when close to player
@@ -3925,8 +3939,8 @@ GOOD LUCK, PILOT!`);
             constructor(x, y) {
                 this.x = x;
                 this.y = y;
-                this.vx = (Math.random() - 0.5) * 3;
-                this.vy = (Math.random() - 0.5) * 3;
+                this.vx = (Math.random() - 0.5) * 2; // reduced from 3
+                this.vy = (Math.random() - 0.5) * 2; // reduced from 3
                 this.size = 25; // Increased from 20
                 this.angle = 0;
                 this.pulseTimer = 0;
@@ -3959,14 +3973,14 @@ GOOD LUCK, PILOT!`);
                 
                 // Limit speed
                 const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
-                if (speed > 4) {
-                    this.vx = (this.vx / speed) * 4;
-                    this.vy = (this.vy / speed) * 4;
+                if (speed > 3) { // reduced from 4
+                    this.vx = (this.vx / speed) * 3; // reduced from 4
+                    this.vy = (this.vy / speed) * 3; // reduced from 4
                 }
                 
                 this.x += this.vx;
                 this.y += this.vy;
-                this.angle += 0.15;
+                this.angle += 0.05; // reduced from 0.15
                 this.pulseTimer += deltaTime;
                 this.multiplyTimer += deltaTime;
                 
@@ -4026,7 +4040,7 @@ GOOD LUCK, PILOT!`);
                 this.x = x;
                 this.y = y;
                 this.angle = angle;
-                this.speed = 6;
+                this.speed = 4; // reduced from 6
                 this.size = 4;
                 this.life = 3000;
                 this.vx = Math.cos(angle) * this.speed;
@@ -4200,10 +4214,10 @@ GOOD LUCK, PILOT!`);
             
             getSpeed(type) {
                 switch(type) {
-                    case 'normal': return 15;
-                    case 'dual': return 14;
-                    case 'shotgun': return 10;
-                    default: return 12;
+                    case 'normal': return 10; // reduced from 15
+                    case 'dual': return 9; // reduced from 14
+                    case 'shotgun': return 7; // reduced from 10
+                    default: return 8; // reduced from 12
                 }
             }
             
@@ -4279,7 +4293,7 @@ GOOD LUCK, PILOT!`);
                 this.x = x;
                 this.y = y;
                 this.vx = 0;
-                this.vy = 2;
+                this.vy = 1; // reduced from 2
                 this.size = 60 + bossStage * 5;
                 this.health = 150 + (level - 1) * 50 + bossStage * 100;
                 this.maxHealth = this.health;
@@ -4344,7 +4358,7 @@ GOOD LUCK, PILOT!`);
                     this.vy = 1;
                 } else {
                     this.vy = 0;
-                    this.vx = Math.sin(this.phaseTimer * 0.001) * (this.rageMode ? 4 : 2);
+                    this.vx = Math.sin(this.phaseTimer * 0.001) * (this.rageMode ? 2.5 : 1.5); // reduced from 4:2
                 }
                 
                 // Clamp boss position to screen
@@ -4610,10 +4624,10 @@ GOOD LUCK, PILOT!`);
             
             getSpeed(type) {
                 switch(type) {
-                    case 'laser': return 8; // Slower projectiles
-                    case 'missile': return 6; // Slower projectiles
-                    case 'spiral': return 4; // Slower projectiles
-                    default: return 7; // Slower projectiles
+                    case 'laser': return 5; // reduced from 8
+                    case 'missile': return 4; // reduced from 6
+                    case 'spiral': return 3; // reduced from 4
+                    default: return 5; // reduced from 7
                 }
             }
             
