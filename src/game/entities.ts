@@ -21,6 +21,14 @@ export interface Bullet {
   hostile: boolean;
   pierce: number;
   lastHit: object | null; // so a piercing shot doesn't hit the same target every tick
+  crit?: boolean;
+}
+
+/** A blinking warning marker shown where an enemy is about to appear. */
+export interface Telegraph {
+  x: number; y: number;
+  t: number; // seconds until the spawn
+  order: { what: 'asteroid' } | { what: 'alien'; kind: AlienKind };
 }
 
 export interface Asteroid {
@@ -65,11 +73,13 @@ export interface Particle {
   x: number; y: number; vx: number; vy: number;
   life: number; max: number;
   color: string;
+  size: number; // 1 = spark, 2 = debris chunk
 }
 
 export type WorldEvent =
   | { type: 'shoot' }
   | { type: 'hit' }
+  | { type: 'crit'; x: number; y: number; amount: number }
   | { type: 'explode'; big: boolean }
   | { type: 'playerHit' }
   | { type: 'pickup' }

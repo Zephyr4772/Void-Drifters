@@ -13,6 +13,7 @@ import { World } from './world';
 type State = 'title' | 'hangar' | 'playing' | 'upgrade' | 'paused' | 'over';
 
 interface Star { x: number; y: number; speed: number; color: string }
+interface Popup { x: number; y: number; text: string; color: string; t: number }
 
 const TITLE_MENU = ['LAUNCH', 'HANGAR'] as const;
 // Screens that pop up mid-action ignore confirms briefly, so a player tapping
@@ -39,8 +40,14 @@ export class Game {
   private t = 0;
   private newBest = false;
   private banked = 0;
+  // Juice: hit-stop freezes the sim for a beat on heavy impacts.
+  private hitstop = 0;
+  private flash = { color: C.white as string, t: 0, max: 1 };
+  private popups: Popup[] = [];
+  private muzzle = 0;
 
   constructor(private screen: Screen, private input: Input) {
+    this.audio.muted = this.save.muted;
     for (let i = 0; i < 90; i++) {
       const layer = i % 3;
       this.stars.push({
@@ -49,6 +56,16 @@ export class Game {
       });
     }
     window.addEventListener('keydown', () => this.audio.unlock());
+    window.addEventListener('mousedown', () => this.audio.unlock());
+  }
+
+  private updateMusic(): void {
+    if (this.state === 'title' || this.state === 'hangar' || this.state === 'over') this.audio.setMusic('calm');
+    else this.audio.setMusic(this.world?.boss ? 'boss' : 'action');
+  }
+
+  private flashScreen(color: string, t: number): void {
+    this.flash = { color, t, max: t };
   }
 
   private go(state: State): void {
@@ -67,7 +84,17 @@ export class Game {
     for (const s of this.stars) { s.y += s.speed * dt; if (s.y >= H) { s.y -= H; s.x = Math.random() * W; } }
     this.shake = Math.max(0, this.shake - dt * 30);
     this.banner.t = Math.max(0, this.banner.t - dt);
+    this.flash.t = Math.max(0, this.flash.t - dt);
+    this.muzzle = Math.max(0, this.muzzle - dt);
+    for (const p of this.popups) { p.t -= dt; p.y -= 14 * dt; }
+    this.popups = this.popups.filter((p) => p.t > 0);
     this.checkCheats(inp.typed);
+    if (inp.pressed('mute')) {
+      this.audio.muted = this.save.muted = !this.save.muted;
+      writeSave(this.save);
+      this.showBanner(this.save.muted ? 'SOUND OFF' : 'SOUND ON', C.steel, 1);
+    }
+    this.updateMusic();
 
     switch (this.state) {
       case 'title': this.updateTitle(); break;
@@ -116,6 +143,7 @@ export class Game {
   private updatePlaying(dt: number): void {
     const inp = this.input;
     if (inp.pressed('pause')) { this.go('paused'); return; }
+    if (this.hitstop > 0) { this.hitstop -= dt; return; }
     const w = this.world!;
     let weapon: WeaponId | undefined;
     if (inp.pressed('weapon1')) weapon = w.weapons[0];
@@ -162,6 +190,8 @@ export class Game {
     this.save.ship = id;
     this.world = new World(id, Date.now(), runConfigFromMeta(this.save.meta));
     this.newBest = false;
+    this.hitstop = 0;
+    this.popups = [];
     this.go('playing');
     this.audio.play('select');
   }
@@ -169,16 +199,34 @@ export class Game {
   private handleEvents(w: World): void {
     for (const e of w.events) {
       switch (e.type) {
-        case 'shoot': this.audio.play('shoot'); break;
+        case 'shoot': this.audio.play('shoot'); this.muzzle = 0.05; break;
         case 'hit': this.audio.play('hit'); break;
+        case 'crit':
+          this.audio.play('crit');
+          this.popups.push({ x: e.x, y: e.y - 4, text: `${e.amount}!`, color: C.yellow, t: 0.6 });
+          break;
         case 'pickup': this.audio.play('pickup'); break;
-        case 'explode': this.audio.play(e.big ? 'bigExplode' : 'explode'); this.shake = Math.max(this.shake, e.big ? 4 : 2); break;
-        case 'playerHit': this.audio.play('hurt'); this.shake = 6; break;
+        case 'explode':
+          this.audio.play(e.big ? 'bigExplode' : 'explode');
+          this.shake = Math.max(this.shake, e.big ? 4 : 2);
+          if (e.big) this.hitstop = Math.max(this.hitstop, 0.04);
+          break;
+        case 'playerHit':
+          this.audio.play('hurt');
+          this.shake = 6;
+          this.hitstop = 0.09;
+          this.flashScreen(C.red, 0.25);
+          break;
         case 'waveStart':
           if (e.boss) { this.audio.play('boss'); this.showBanner('WARNING: BOSS', C.red, 2.4); }
           else { this.audio.play('wave'); this.showBanner(`WAVE ${e.wave}`, C.white, 1.8); }
           break;
-        case 'bossDown': this.shake = 10; this.showBanner('BOSS DESTROYED', C.yellow, 2); break;
+        case 'bossDown':
+          this.shake = 10;
+          this.hitstop = 0.3;
+          this.flashScreen(C.white, 0.5);
+          this.showBanner('BOSS DESTROYED', C.yellow, 2);
+          break;
         case 'waveCleared':
           this.choices = w.rollUpgrades();
           this.choiceIndex = 0;
@@ -238,6 +286,13 @@ export class Game {
     if (this.state === 'upgrade') this.drawUpgrade(this.world!);
     if (this.state === 'paused') this.drawPanel('PAUSED', ['', 'P / ENTER TO RESUME']);
     if (this.state === 'over') this.drawGameOver(this.world!);
+    if (this.flash.t > 0) {
+      ctx.globalAlpha = 0.45 * (this.flash.t / this.flash.max);
+      ctx.fillStyle = this.flash.color;
+      ctx.fillRect(0, 0, W, H);
+      ctx.globalAlpha = 1;
+    }
+    if (this.save.muted) drawText(ctx, 'MUTED', W / 2, H - 8, C.steel, 1, 'center');
   }
 
   private drawSprite(sp: Sprite, x: number, y: number, angle = 0): void {
@@ -254,9 +309,19 @@ export class Game {
     for (const p of w.particles) {
       ctx.globalAlpha = Math.max(0, p.life / p.max);
       ctx.fillStyle = p.color;
-      ctx.fillRect(Math.floor(p.x), Math.floor(p.y), 1, 1);
+      ctx.fillRect(Math.floor(p.x), Math.floor(p.y), p.size, p.size);
     }
     ctx.globalAlpha = 1;
+
+    // Spawn warnings: a blinking chevron marker at the edge where an enemy is about to appear.
+    for (const tg of w.telegraphs) {
+      if (Math.floor(tg.t * 12) % 2) continue;
+      const x = Math.round(Math.min(W - 4, Math.max(3, tg.x))), y = Math.round(Math.min(H - 4, Math.max(3, tg.y)));
+      ctx.fillStyle = tg.order.what === 'asteroid' ? C.steel : C.red;
+      ctx.fillRect(x - 3, y, 7, 1);
+      ctx.fillRect(x, y - 3, 1, 7);
+      ctx.fillRect(x - 1, y - 1, 3, 3);
+    }
 
     for (const p of w.pickups) {
       if (p.life < 2 && Math.floor(this.t * 10) % 2 === 0) continue; // blink before despawning
@@ -284,16 +349,41 @@ export class Game {
       if (b.flash > 0) this.flashBox(b.x, b.y, b.r * 0.7);
     }
     for (const b of w.bullets) {
-      ctx.fillStyle = b.hostile ? C.red : b.r > 1.5 ? C.white : C.yellow;
+      const color = b.hostile ? C.red : b.crit ? C.white : C.yellow;
+      // Short trail: two fading pixels behind the bullet along its velocity.
+      ctx.fillStyle = color;
+      for (let i = 2; i >= 1; i--) {
+        ctx.globalAlpha = 0.5 / i;
+        ctx.fillRect(Math.floor(b.x - b.vx * 0.012 * i), Math.floor(b.y - b.vy * 0.012 * i), 1, 1);
+      }
+      ctx.globalAlpha = 1;
       ctx.fillRect(Math.floor(b.x - 1), Math.floor(b.y - 1), 2, 2);
     }
 
     const s = w.ship;
-    const blink = s.invuln > 0 && Math.floor(this.t * 16) % 2 === 0;
-    if (!w.over && !blink) {
+    if (!w.over) {
       const rot = Math.round(s.angle / (Math.PI / 8)) * (Math.PI / 8);
       this.drawSprite(this.sprites.ship[s.id], s.x, s.y, rot);
-      if (w.godMode) { ctx.strokeStyle = C.yellow; ctx.strokeRect(Math.round(s.x) - 8, Math.round(s.y) - 8, 16, 16); }
+      if (this.muzzle > 0) {
+        ctx.fillStyle = C.white;
+        ctx.fillRect(Math.round(s.x + Math.cos(s.angle) * 7) - 1, Math.round(s.y + Math.sin(s.angle) * 7) - 1, 3, 3);
+      }
+      // Shield bubble while invulnerable, flickering out as it expires.
+      if (s.invuln > 0 && (s.invuln > 0.5 || Math.floor(this.t * 20) % 2)) this.ring(s.x, s.y, 9, C.cyan);
+      if (w.godMode) this.ring(s.x, s.y, 11, C.yellow);
+    }
+
+    for (const p of this.popups) drawText(ctx, p.text, p.x, p.y, p.t < 0.2 && Math.floor(this.t * 20) % 2 ? C.orange : p.color, 1, 'center');
+  }
+
+  /** Pixel circle outline (no anti-aliasing). */
+  private ring(cx: number, cy: number, r: number, color: string): void {
+    const ctx = this.screen.ctx;
+    ctx.fillStyle = color;
+    const n = Math.ceil(r * 6);
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      ctx.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r), 1, 1);
     }
   }
 
@@ -364,7 +454,7 @@ export class Game {
       const text = sel ? `> ${label} <` : label;
       drawText(ctx, text, W / 2, 185 + i * 14, sel ? C.yellow : C.steel, 2, 'center');
     });
-    drawText(ctx, 'WASD: MOVE   LEFT CLICK: FIRE   SHIFT: BOOST   1-3: WEAPON', W / 2, H - 40, C.steel, 1, 'center');
+    drawText(ctx, 'WASD: MOVE   CLICK: FIRE   SHIFT: BOOST   1-3: WEAPON   M: MUTE', W / 2, H - 40, C.steel, 1, 'center');
     drawText(ctx, 'ARROWS: SHIP / MENU   ENTER: SELECT', W / 2, H - 28, C.steel, 1, 'center');
     drawText(ctx, `SCRAP ${this.save.scrap}   BEST ${this.save.highScore}   WAVE ${this.save.bestWave}`, W / 2, H - 14, C.cyan, 1, 'center');
   }

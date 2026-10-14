@@ -9,9 +9,10 @@ export interface SaveData {
   ship: string;
   scrap: number;
   meta: MetaLevels;
+  muted: boolean;
 }
 
-const defaults = (): SaveData => ({ highScore: 0, bestWave: 0, ship: 'interceptor', scrap: 0, meta: {} });
+const defaults = (): SaveData => ({ highScore: 0, bestWave: 0, ship: 'interceptor', scrap: 0, meta: {}, muted: false });
 
 export function loadSave(): SaveData {
   try {
