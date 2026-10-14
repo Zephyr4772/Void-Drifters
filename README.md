@@ -12,7 +12,7 @@ npm test           # simulation tests
 npm run build      # static build in dist/, ready for itch.io or GitHub Pages
 ```
 
-**Controls:** WASD / arrows to move · Shift to boost · Space to fire · 1-3 to switch weapon · P / Esc to pause.
+**Controls:** WASD / arrows to move · Shift to boost · left click to fire · Space reserved for a ship special (coming soon) · 1-3 to switch weapon · P / Esc to pause.
 
 ## How a run works
 

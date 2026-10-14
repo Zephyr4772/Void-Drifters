@@ -16,7 +16,7 @@ interface Star { x: number; y: number; speed: number; color: string }
 
 const TITLE_MENU = ['LAUNCH', 'HANGAR'] as const;
 // Screens that pop up mid-action ignore confirms briefly, so a player tapping
-// Space to shoot doesn't instantly pick an upgrade or skip the game-over screen.
+// click to shoot doesn't instantly pick an upgrade or skip the game-over screen.
 const PICK_GRACE = 0.5;
 const GAME_OVER_GRACE = 1.2;
 
@@ -128,6 +128,7 @@ export class Game {
       fire: inp.held('fire'),
       weapon,
     });
+    // TODO: Space ('special') is reserved for a powerup / ship-specific ability, still to be designed.
     this.handleEvents(w);
   }
 
@@ -363,6 +364,7 @@ export class Game {
       const text = sel ? `> ${label} <` : label;
       drawText(ctx, text, W / 2, 185 + i * 14, sel ? C.yellow : C.steel, 2, 'center');
     });
+    drawText(ctx, 'WASD: MOVE   LEFT CLICK: FIRE   SHIFT: BOOST   1-3: WEAPON', W / 2, H - 40, C.steel, 1, 'center');
     drawText(ctx, 'ARROWS: SHIP / MENU   ENTER: SELECT', W / 2, H - 28, C.steel, 1, 'center');
     drawText(ctx, `SCRAP ${this.save.scrap}   BEST ${this.save.highScore}   WAVE ${this.save.bestWave}`, W / 2, H - 14, C.cyan, 1, 'center');
   }
