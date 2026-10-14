@@ -1,5 +1,5 @@
 /** Synth sound effects (same approach as the legacy game's Web Audio oscillators). */
-type Sfx = 'shoot' | 'hit' | 'explode' | 'bigExplode' | 'hurt' | 'wave' | 'select';
+type Sfx = 'shoot' | 'hit' | 'explode' | 'bigExplode' | 'hurt' | 'wave' | 'select' | 'pickup' | 'boss' | 'buy' | 'deny';
 
 const DEFS: Record<Sfx, { type: OscillatorType; f0: number; f1: number; dur: number; vol: number }> = {
   shoot: { type: 'square', f0: 880, f1: 440, dur: 0.06, vol: 0.04 },
@@ -9,6 +9,10 @@ const DEFS: Record<Sfx, { type: OscillatorType; f0: number; f1: number; dur: num
   hurt: { type: 'triangle', f0: 400, f1: 60, dur: 0.4, vol: 0.2 },
   wave: { type: 'square', f0: 440, f1: 880, dur: 0.3, vol: 0.06 },
   select: { type: 'square', f0: 660, f1: 990, dur: 0.07, vol: 0.05 },
+  pickup: { type: 'triangle', f0: 1200, f1: 1800, dur: 0.05, vol: 0.05 },
+  boss: { type: 'sawtooth', f0: 80, f1: 160, dur: 1.2, vol: 0.12 },
+  buy: { type: 'square', f0: 520, f1: 1560, dur: 0.18, vol: 0.06 },
+  deny: { type: 'square', f0: 180, f1: 120, dur: 0.15, vol: 0.06 },
 };
 
 export class Audio {

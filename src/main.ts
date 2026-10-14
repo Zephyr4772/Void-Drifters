@@ -8,3 +8,6 @@ const input = new Input();
 input.attach(window);
 const game = new Game(new Screen(canvas), input);
 new FixedLoop(game).start();
+
+// Dev-only handle for poking at state from the console; stripped from production builds.
+if (import.meta.env.DEV) (window as unknown as { game: Game }).game = game;

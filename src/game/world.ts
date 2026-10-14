@@ -6,8 +6,10 @@ import { circlesHit, clamp, Rng, wrap } from '../core/math';
 import { VIEW_H as H, VIEW_W as W } from '../render/screen';
 import { ASTEROID_SIZES, PALETTE, type AlienKind, type ShipId } from '../render/sprites';
 import { ALIENS, ASTEROID_HP, ASTEROID_SCORE, SHIPS, WEAPONS, type WeaponId } from './data';
-import type { Alien, Asteroid, Bullet, Particle, Ship, WorldEvent } from './entities';
-import { planWave, type SpawnOrder } from './waves';
+import type { Alien, Asteroid, Boss, Bullet, Particle, Pickup, Ship, WorldEvent } from './entities';
+import { runConfigFromMeta, type RunConfig } from './meta';
+import { rollUpgrades, type RunMods, type UpgradeDef, type UpgradeTarget } from './upgrades';
+import { isBossWave, planWave, type SpawnOrder } from './waves';
 
 export interface Controls {
   ax: number; ay: number; // -1..1
@@ -17,39 +19,64 @@ export interface Controls {
 }
 
 const SPAWN_GAP = 0.55;
-const WAVE_BREAK = 2.0;
+const WAVE_BREAK = 1.2;
 const COMBO_WINDOW = 2.5;
+const ALIEN_COLOR: Record<AlienKind, string> = {
+  drifter: PALETTE.green, gunner: PALETTE.magenta, bomber: PALETTE.orange, splitter: PALETTE.purple,
+};
 
 export class World {
   readonly rng: Rng;
   ship: Ship;
+  mods: RunMods;
+  weapons: WeaponId[];
+  rerolls: number;
+  taken: Record<string, number> = {};
+
   bullets: Bullet[] = [];
   asteroids: Asteroid[] = [];
   aliens: Alien[] = [];
+  boss: Boss | null = null;
+  pickups: Pickup[] = [];
   particles: Particle[] = [];
   events: WorldEvent[] = [];
 
   score = 0;
+  scrap = 0;
   combo = 0;
   comboT = 0;
   wave = 0;
   waveBreak = 1.0;
+  /** Set when a wave is cleared; the run is frozen until an upgrade is picked. */
+  awaitingPick = false;
   spawnQueue: SpawnOrder[] = [];
   spawnT = 0;
   over = false;
   godMode = false;
   time = 0;
 
-  constructor(shipId: ShipId, seed = Date.now()) {
+  constructor(shipId: ShipId, seed = Date.now(), config: RunConfig = runConfigFromMeta({})) {
     this.rng = new Rng(seed);
+    this.mods = { ...config.mods };
+    this.weapons = [...config.weapons];
+    this.rerolls = config.rerolls;
     this.ship = {
       id: shipId, x: W / 2, y: H / 2, vx: 0, vy: 0, angle: -Math.PI / 2, r: 4,
-      hull: SHIPS[shipId].hull, invuln: 1.5, cooldown: 0, weapon: 'blaster', thrusting: false,
+      hull: 0, invuln: 1.5, cooldown: 0, weapon: 'blaster', thrusting: false,
     };
+    this.ship.hull = this.maxHull;
+  }
+
+  get maxHull(): number {
+    return SHIPS[this.ship.id].hull + this.mods.maxHullBonus;
   }
 
   get fieldClear(): boolean {
-    return this.asteroids.length === 0 && this.aliens.length === 0 && this.spawnQueue.length === 0;
+    return this.asteroids.length === 0 && this.aliens.length === 0 && !this.boss && this.spawnQueue.length === 0;
+  }
+
+  get comboMult(): number {
+    return 1 + clamp(Math.floor(this.combo / 5), 0, 9) * 0.5;
   }
 
   update(dt: number, c: Controls): void {
@@ -59,10 +86,38 @@ export class World {
     this.updateWaves(dt);
     this.updateAsteroids(dt);
     this.updateAliens(dt);
+    this.updateBoss(dt);
     this.updateBullets(dt);
+    this.updatePickups(dt);
     this.updateParticles(dt);
     if (!this.over) this.collide();
     if (this.comboT > 0 && (this.comboT -= dt) <= 0) this.combo = 0;
+  }
+
+  // ---- upgrades ---------------------------------------------------------
+
+  private get upgradeTarget(): UpgradeTarget {
+    return {
+      mods: this.mods,
+      weapons: this.weapons,
+      hull: this.ship.hull,
+      maxHull: this.maxHull,
+      heal: (n) => { this.ship.hull = Math.min(this.maxHull, this.ship.hull + n); },
+    };
+  }
+
+  rollUpgrades(n = 3): UpgradeDef[] {
+    return rollUpgrades(this.rng, this.taken, this.upgradeTarget, n);
+  }
+
+  /** Apply the chosen upgrade (or none) and let the next wave begin. */
+  finishPick(choice: UpgradeDef | null): void {
+    if (choice) {
+      this.taken[choice.id] = (this.taken[choice.id] ?? 0) + 1;
+      choice.apply(this.upgradeTarget);
+    }
+    this.awaitingPick = false;
+    this.waveBreak = WAVE_BREAK;
   }
 
   // ---- ship -------------------------------------------------------------
@@ -70,17 +125,17 @@ export class World {
   private updateShip(dt: number, c: Controls): void {
     const s = this.ship;
     const stats = SHIPS[s.id];
-    if (c.weapon) s.weapon = c.weapon;
+    if (c.weapon && this.weapons.includes(c.weapon)) s.weapon = c.weapon;
 
     const mag = Math.hypot(c.ax, c.ay);
     const ax = mag > 1 ? c.ax / mag : c.ax, ay = mag > 1 ? c.ay / mag : c.ay;
     const boost = c.boost ? 1.8 : 1;
-    s.vx += ax * stats.accel * boost * dt;
-    s.vy += ay * stats.accel * boost * dt;
+    s.vx += ax * stats.accel * this.mods.speedMul * boost * dt;
+    s.vy += ay * stats.accel * this.mods.speedMul * boost * dt;
     // Frame-rate independent drag (legacy used 0.99 per frame at 60 Hz).
     const drag = Math.pow(0.35, dt);
     s.vx *= drag; s.vy *= drag;
-    const max = stats.maxSpeed * (c.boost ? 1.5 : 1);
+    const max = stats.maxSpeed * this.mods.speedMul * (c.boost ? 1.5 : 1);
     const sp = Math.hypot(s.vx, s.vy);
     if (sp > max) { s.vx = (s.vx / sp) * max; s.vy = (s.vy / sp) * max; }
     s.x += s.vx * dt; s.y += s.vy * dt;
@@ -99,21 +154,28 @@ export class World {
 
     s.invuln = Math.max(0, s.invuln - dt);
     s.cooldown -= dt;
-    if (c.fire && s.cooldown <= 0) this.fire();
+    if (c.fire && s.cooldown <= 0 && !this.awaitingPick) this.fire();
   }
 
   private fire(): void {
-    const s = this.ship;
+    const s = this.ship, m = this.mods;
     const w = WEAPONS[s.weapon];
-    s.cooldown = w.cooldown * SHIPS[s.id].fireRateMul;
+    s.cooldown = w.cooldown * SHIPS[s.id].fireRateMul * m.cooldownMul;
+    const pattern = [...w.pattern];
+    // Split Barrel: extra shots fan out alternately left and right of the base pattern.
+    for (let k = 1; k <= m.extraShots; k++) {
+      pattern.push({ angle: (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.14, side: 0 });
+    }
     const nx = Math.cos(s.angle + Math.PI / 2), ny = Math.sin(s.angle + Math.PI / 2);
-    for (const p of w.pattern) {
+    for (const p of pattern) {
       const a = s.angle + p.angle + this.rng.range(-w.spread, w.spread);
+      const crit = this.rng.next() < m.critChance ? 2 : 1;
       this.bullets.push({
         x: s.x + Math.cos(s.angle) * 6 + nx * p.side,
         y: s.y + Math.sin(s.angle) * 6 + ny * p.side,
-        vx: Math.cos(a) * w.speed, vy: Math.sin(a) * w.speed,
-        r: 1.5, life: 0.9, damage: w.damage, hostile: false,
+        vx: Math.cos(a) * w.speed * m.bulletSpeedMul, vy: Math.sin(a) * w.speed * m.bulletSpeedMul,
+        r: crit > 1 ? 2 : 1.5, life: 0.9, damage: w.damage * m.damageMul * crit, hostile: false,
+        pierce: m.pierce, lastHit: null,
       });
     }
     this.events.push({ type: 'shoot' });
@@ -122,24 +184,36 @@ export class World {
   // ---- waves ------------------------------------------------------------
 
   private updateWaves(dt: number): void {
-    if (this.over) return;
+    if (this.over || this.awaitingPick) return;
     if (this.fieldClear) {
-      this.waveBreak -= dt;
-      if (this.waveBreak <= 0) {
-        this.wave++;
-        this.spawnQueue = planWave(this.wave, this.rng);
-        this.spawnT = 0;
+      if (this.wave > 0 && this.waveBreak <= 0) {
+        // Wave just cleared: vacuum up leftover scrap and ask for an upgrade.
+        for (const p of this.pickups) this.scrap += p.value * this.mods.scrapMul;
+        this.pickups = [];
+        this.awaitingPick = true;
         this.waveBreak = WAVE_BREAK;
-        this.events.push({ type: 'waveStart', wave: this.wave });
+        this.events.push({ type: 'waveCleared', wave: this.wave });
+        return;
       }
+      this.waveBreak -= dt;
+      if (this.waveBreak <= 0) this.startWave();
       return;
     }
     if (this.spawnQueue.length && (this.spawnT -= dt) <= 0) {
       const order = this.spawnQueue.shift()!;
       if (order.what === 'asteroid') this.spawnAsteroid(2);
+      else if (order.what === 'boss') this.spawnBoss();
       else this.spawnAlien(order.kind);
       this.spawnT = SPAWN_GAP;
     }
+  }
+
+  private startWave(): void {
+    this.wave++;
+    this.spawnQueue = planWave(this.wave, this.rng);
+    this.spawnT = 0;
+    this.waveBreak = 0; // stays <= 0 while the wave runs, so clearing it triggers the pick
+    this.events.push({ type: 'waveStart', wave: this.wave, boss: isBossWave(this.wave) });
   }
 
   /** A point on the screen edge, kept away from the player. */
@@ -175,6 +249,15 @@ export class World {
     });
   }
 
+  spawnBoss(): void {
+    const tier = Math.max(1, Math.floor(this.wave / 5));
+    const hp = 500 + (tier - 1) * 350;
+    this.boss = {
+      x: W / 2, y: -20, vx: 0, vy: 40, r: 11, hp, maxHp: hp,
+      t: 0, attackT: 2, pattern: 0, flash: 0, tier,
+    };
+  }
+
   // ---- enemies ----------------------------------------------------------
 
   private updateAsteroids(dt: number): void {
@@ -207,10 +290,50 @@ export class World {
 
       if (al.kind === 'gunner' && !this.over && (al.fireT -= dt) <= 0) {
         al.fireT = Math.max(0.9, 2.2 - this.wave * 0.08);
-        const a = Math.atan2(dy, dx);
-        this.bullets.push({ x: al.x, y: al.y, vx: Math.cos(a) * 110, vy: Math.sin(a) * 110, r: 2, life: 3, damage: 1, hostile: true });
+        this.enemyShot(al.x, al.y, Math.atan2(dy, dx), 110);
       }
     }
+  }
+
+  private updateBoss(dt: number): void {
+    const b = this.boss;
+    if (!b) return;
+    b.t += dt;
+    b.flash = Math.max(0, b.flash - dt);
+    // Drift along a slow figure-eight over the arena.
+    const tx = W / 2 + Math.sin(b.t * 0.45) * 150;
+    const ty = H / 2 - 30 + Math.sin(b.t * 0.9) * 50;
+    const k = 1 - Math.pow(0.2, dt);
+    b.vx += ((tx - b.x) * 0.9 - b.vx) * k;
+    b.vy += ((ty - b.y) * 0.9 - b.vy) * k;
+    b.x += b.vx * dt; b.y += b.vy * dt;
+
+    if (this.over || (b.attackT -= dt) > 0) return;
+    const enraged = b.hp < b.maxHp / 2;
+    const aim = Math.atan2(this.ship.y - b.y, this.ship.x - b.x);
+    switch (b.pattern % 3) {
+      case 0: { // ring
+        const n = 12 + b.tier * 2 + (enraged ? 4 : 0);
+        const off = b.t;
+        for (let i = 0; i < n; i++) this.enemyShot(b.x, b.y, off + (i / n) * Math.PI * 2, 70);
+        break;
+      }
+      case 1: // aimed fan
+        for (let i = -2; i <= 2; i++) this.enemyShot(b.x, b.y, aim + i * 0.22, 105);
+        break;
+      case 2: // aimed stream: three shots at staggered speeds arrive one after another
+        for (const sp of [150, 125, 100]) this.enemyShot(b.x, b.y, aim, sp);
+        break;
+    }
+    b.pattern++;
+    b.attackT = Math.max(0.8, 1.7 - b.tier * 0.15) * (enraged ? 0.75 : 1);
+  }
+
+  private enemyShot(x: number, y: number, angle: number, speed: number, life = 3.5): void {
+    this.bullets.push({
+      x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+      r: 2, life, damage: 1, hostile: true, pierce: 0, lastHit: null,
+    });
   }
 
   private updateBullets(dt: number): void {
@@ -221,12 +344,40 @@ export class World {
     this.bullets = this.bullets.filter((b) => b.life > 0);
   }
 
+  private updatePickups(dt: number): void {
+    const s = this.ship;
+    for (const p of this.pickups) {
+      p.life -= dt;
+      const dx = s.x - p.x, dy = s.y - p.y, d = Math.hypot(dx, dy) || 1;
+      if (!this.over && d < this.mods.magnet) {
+        p.vx = (dx / d) * 170; p.vy = (dy / d) * 170;
+      } else {
+        p.vx *= Math.pow(0.1, dt); p.vy *= Math.pow(0.1, dt);
+      }
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      wrap(p, W, H);
+      if (!this.over && d < 6) {
+        p.life = 0;
+        this.scrap += p.value * this.mods.scrapMul;
+        this.events.push({ type: 'pickup' });
+      }
+    }
+    this.pickups = this.pickups.filter((p) => p.life > 0);
+  }
+
   private updateParticles(dt: number): void {
     for (const p of this.particles) {
       p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt;
       p.vx *= Math.pow(0.2, dt); p.vy *= Math.pow(0.2, dt);
     }
     this.particles = this.particles.filter((p) => p.life > 0);
+  }
+
+  private dropScrap(x: number, y: number, count: number, value = 1): void {
+    for (let i = 0; i < count; i++) {
+      const a = this.rng.range(0, Math.PI * 2), sp = this.rng.range(20, 60);
+      this.pickups.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, value, life: 10 });
+    }
   }
 
   // ---- collisions -------------------------------------------------------
@@ -239,16 +390,20 @@ export class World {
         if (circlesHit(b, s)) { b.life = 0; this.hurtPlayer(); }
         continue;
       }
-      for (const a of this.asteroids) {
-        if (a.hp > 0 && circlesHit(b, a)) { b.life = 0; this.damageAsteroid(a, b.damage); break; }
-      }
-      if (b.life <= 0) continue;
-      for (const al of this.aliens) {
-        if (al.hp > 0 && circlesHit(b, al)) { b.life = 0; this.damageAlien(al, b.damage); break; }
-      }
+      const target =
+        this.asteroids.find((a) => a.hp > 0 && a !== b.lastHit && circlesHit(b, a)) ??
+        this.aliens.find((a) => a.hp > 0 && a !== b.lastHit && circlesHit(b, a)) ??
+        (this.boss && this.boss !== b.lastHit && circlesHit(b, this.boss) ? this.boss : null);
+      if (!target) continue;
+      if (target === this.boss) this.damageBoss(b.damage);
+      else if ('tier' in target) this.damageAsteroid(target as Asteroid, b.damage);
+      else this.damageAlien(target as Alien, b.damage);
+      b.lastHit = target;
+      if (b.pierce-- <= 0) b.life = 0;
     }
     for (const a of this.asteroids) if (a.hp > 0 && circlesHit(a, s)) { this.hurtPlayer(); this.damageAsteroid(a, 999); }
     for (const al of this.aliens) if (al.hp > 0 && circlesHit(al, s)) { this.hurtPlayer(); this.damageAlien(al, 999); }
+    if (this.boss && circlesHit(this.boss, s)) this.hurtPlayer();
 
     this.bullets = this.bullets.filter((b) => b.life > 0);
     this.asteroids = this.asteroids.filter((a) => a.hp > 0);
@@ -261,9 +416,10 @@ export class World {
     this.burst(a.x, a.y, PALETTE.rock, 6 + a.tier * 6);
     this.addScore(ASTEROID_SCORE[a.tier]);
     this.events.push({ type: 'explode', big: a.tier === 2 });
+    if (a.tier === 0 && this.rng.next() < 0.35) this.dropScrap(a.x, a.y, 1);
     if (a.tier > 0) {
       const t = (a.tier - 1) as 0 | 1;
-      // Splitting into the asteroids array while iterating it is safe: we filter afterwards.
+      // Pushing new pieces while iterating is safe: the array is filtered afterwards.
       this.spawnAsteroid(t, a); this.spawnAsteroid(t, a);
     }
   }
@@ -271,21 +427,34 @@ export class World {
   private damageAlien(al: Alien, dmg: number): void {
     al.hp -= dmg; al.flash = 0.06;
     if (al.hp > 0) { this.events.push({ type: 'hit' }); return; }
-    const color = { drifter: PALETTE.green, gunner: PALETTE.magenta, bomber: PALETTE.orange, splitter: PALETTE.purple }[al.kind];
-    this.burst(al.x, al.y, color, 14);
+    this.burst(al.x, al.y, ALIEN_COLOR[al.kind], 14);
     this.addScore(ALIENS[al.kind].score * (al.mini ? 0.5 : 1));
     this.events.push({ type: 'explode', big: al.kind === 'bomber' });
+    this.dropScrap(al.x, al.y, al.mini ? 1 : ALIENS[al.kind].cost);
     if (al.kind === 'bomber') {
       // Ring of shrapnel: punishes killing it at point-blank range.
-      for (let i = 0; i < 8; i++) {
-        const a = (i / 8) * Math.PI * 2;
-        this.bullets.push({ x: al.x, y: al.y, vx: Math.cos(a) * 90, vy: Math.sin(a) * 90, r: 2, life: 0.8, damage: 1, hostile: true });
-      }
+      for (let i = 0; i < 8; i++) this.enemyShot(al.x, al.y, (i / 8) * Math.PI * 2, 90, 0.8);
     }
     if (al.kind === 'splitter' && !al.mini) {
       this.spawnAlien('splitter', { x: al.x - 4, y: al.y }, true);
       this.spawnAlien('splitter', { x: al.x + 4, y: al.y }, true);
     }
+  }
+
+  private damageBoss(dmg: number): void {
+    const b = this.boss!;
+    b.hp -= dmg; b.flash = 0.05;
+    this.events.push({ type: 'hit' });
+    if (b.hp > 0) return;
+    this.burst(b.x, b.y, PALETTE.red, 60);
+    this.burst(b.x, b.y, PALETTE.yellow, 40);
+    this.addScore(2000 * b.tier);
+    this.dropScrap(b.x, b.y, 10 + b.tier * 4, 3);
+    this.ship.hull = Math.min(this.maxHull, this.ship.hull + 1);
+    // Clear the boss's bullets so the victory doesn't kill you.
+    this.bullets = this.bullets.filter((x) => !x.hostile);
+    this.boss = null;
+    this.events.push({ type: 'explode', big: true }, { type: 'bossDown' });
   }
 
   private hurtPlayer(): void {
@@ -296,6 +465,15 @@ export class World {
     this.combo = 0;
     this.burst(s.x, s.y, PALETTE.cyan, 18);
     this.events.push({ type: 'playerHit' });
+    if (this.mods.nova) {
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2;
+        this.bullets.push({
+          x: s.x, y: s.y, vx: Math.cos(a) * 220, vy: Math.sin(a) * 220, r: 2, life: 0.7,
+          damage: 20 * this.mods.damageMul, hostile: false, pierce: 1, lastHit: null,
+        });
+      }
+    }
     if (s.hull <= 0) {
       this.over = true;
       this.burst(s.x, s.y, PALETTE.white, 40);
@@ -306,12 +484,7 @@ export class World {
   private addScore(base: number): void {
     this.combo++;
     this.comboT = COMBO_WINDOW;
-    const mult = 1 + clamp(Math.floor(this.combo / 5), 0, 9) * 0.5;
-    this.score += Math.round(base * mult);
-  }
-
-  get comboMult(): number {
-    return 1 + clamp(Math.floor(this.combo / 5), 0, 9) * 0.5;
+    this.score += Math.round(base * this.comboMult);
   }
 
   private burst(x: number, y: number, color: string, n: number): void {

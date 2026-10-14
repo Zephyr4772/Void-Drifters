@@ -1,7 +1,7 @@
 /** Keyboard state with per-tick "pressed this tick" edges. */
 export type Action =
   | 'up' | 'down' | 'left' | 'right' | 'boost' | 'fire'
-  | 'pause' | 'confirm' | 'weapon1' | 'weapon2' | 'weapon3';
+  | 'pause' | 'confirm' | 'reroll' | 'weapon1' | 'weapon2' | 'weapon3';
 
 const BINDINGS: Record<string, Action> = {
   KeyW: 'up', ArrowUp: 'up',
@@ -12,6 +12,7 @@ const BINDINGS: Record<string, Action> = {
   Space: 'fire',
   KeyP: 'pause', Escape: 'pause',
   Enter: 'confirm',
+  KeyR: 'reroll',
   Digit1: 'weapon1', Digit2: 'weapon2', Digit3: 'weapon3',
 };
 

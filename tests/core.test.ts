@@ -33,7 +33,7 @@ describe('planWave', () => {
   });
 
   it('grows with wave number', () => {
-    expect(planWave(10, new Rng(3)).length).toBeGreaterThan(planWave(1, new Rng(3)).length);
+    expect(planWave(9, new Rng(3)).length).toBeGreaterThan(planWave(1, new Rng(3)).length);
   });
 });
 

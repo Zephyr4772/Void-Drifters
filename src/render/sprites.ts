@@ -107,6 +107,27 @@ const ALIEN_ROWS = {
 };
 export type AlienKind = keyof typeof ALIEN_ROWS;
 
+const BOSS_ROWS = [
+  '.......rrrrrrrrrr.......',
+  '.....rrmmmmmmmmmmrr.....',
+  '....rmmmmmmmmmmmmmmr....',
+  '...rmmmyyymmmmyyymmmr...',
+  '..rmmmyywyymmyywyymmmr..',
+  '..rmmmyyyyymmyyyyymmmr..',
+  '.rmmmmmyyymmmmyyymmmmmr.',
+  'rrmmmmmmmmmmmmmmmmmmmmrr',
+  'rmmrrmmmmmrrrrmmmmmrrmmr',
+  'rmr..rmmmrooooormmr..rmr',
+  'rr....rmmrooyyoormr...rr',
+  'r.....rmr.ooyyoo.rmr...r',
+  '......rr...oooo...rr....',
+  '.....rr.....oo.....rr...',
+  '....rr..............rr..',
+  '...rr................rr.',
+];
+
+const SCRAP_ROWS = ['.y.', 'ywy', '.y.'];
+
 /** Lumpy procedural rock so asteroids don't all look the same. */
 function asteroidRows(size: number, seed: number): string[] {
   const rows: string[] = [];
@@ -133,6 +154,8 @@ export interface SpriteBank {
   ship: Record<ShipId, Sprite>;
   alien: Record<AlienKind, Sprite>;
   asteroid: Sprite[][]; // [sizeTier][variant]
+  boss: Sprite;
+  scrap: Sprite;
 }
 
 export function buildSprites(): SpriteBank {
@@ -146,6 +169,8 @@ export function buildSprites(): SpriteBank {
     ship: mapRows(SHIP_ROWS, shipCol),
     alien: mapRows(ALIEN_ROWS, alienCol),
     asteroid: ASTEROID_SIZES.map((size) => [0, 1, 2, 3].map((v) => bake(asteroidRows(size, v * 2.1 + size), rockCol))),
+    boss: bake(BOSS_ROWS, { r: P.red, m: P.magenta, y: P.yellow, w: P.white, o: P.orange }),
+    scrap: bake(SCRAP_ROWS, { y: P.yellow, w: P.white }),
   };
 }
 
