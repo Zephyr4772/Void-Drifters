@@ -26,7 +26,7 @@ npm run build      # static build in dist/, ready for itch.io or GitHub Pages
 
 ```
 src/core/     fixed-timestep loop, input, math + seeded RNG
-src/render/   480x270 pixel screen, baked pixel sprites, bitmap font
+src/render/   640x360 pixel screen, Kenney sprite sheets + baked fallback sprites, bitmap font
 src/audio/    synth sound effects
 src/game/     world simulation (DOM-free), waves, upgrades, meta shop, saves, state machine
 tests/        Vitest: loop timing, waves, simulation, upgrades, bosses, meta progression
@@ -39,5 +39,11 @@ legacy/       the original index.html game and its assets
 - [x] **Phase 2:** roguelite layer: scrap, upgrade picks between waves, Hangar meta shop, ship unlocks, bosses
 - [ ] Port the remaining legacy content: laser weapon, lore easter egg; more boss types and enemy variety
 - [x] **Phase 3a:** juice (hit-stop, flashes, trails, crit popups, spawn warnings) and a procedural chiptune soundtrack
-- [ ] **Phase 3b:** CC0 pixel-art packs to replace the placeholder sprites
+- [x] **Phase 3b:** Kenney "Pixel Shmup" CC0 art for ships, aliens, boss, shots and explosions; 640x360 view
 - [ ] **Phase 4:** itch.io / GitHub Pages release
+
+## Credits
+
+- Ship, bullet and explosion art: [Pixel Shmup](https://kenney.nl/assets/pixel-shmup) by Kenney, CC0
+  (see `public/assets/kenney-pixel-shmup/License.txt`).
+- Original game, design and code: Sinhal Joshi.

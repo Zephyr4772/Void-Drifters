@@ -156,6 +156,12 @@ export interface SpriteBank {
   asteroid: Sprite[][]; // [sizeTier][variant]
   boss: Sprite;
   scrap: Sprite;
+  /** Pack art only: player shot / crit shot (facing right) and explosion frames. */
+  shot?: Sprite;
+  critShot?: Sprite;
+  boom?: Sprite[];
+  /** True when alien sprites are ships that should turn to face their heading. */
+  aliensFaceHeading: boolean;
 }
 
 export function buildSprites(): SpriteBank {
@@ -171,15 +177,62 @@ export function buildSprites(): SpriteBank {
     asteroid: ASTEROID_SIZES.map((size) => [0, 1, 2, 3].map((v) => bake(asteroidRows(size, v * 2.1 + size), rockCol))),
     boss: bake(BOSS_ROWS, { r: P.red, m: P.magenta, y: P.yellow, w: P.white, o: P.orange }),
     scrap: bake(SCRAP_ROWS, { y: P.yellow, w: P.white }),
+    aliensFaceHeading: false,
   };
 }
 
-/** Hook for CC0 packs: load a PNG to use in place of a baked sprite. */
-export function loadImageSprite(url: string): Promise<HTMLImageElement> {
+function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
     img.onerror = reject;
     img.src = url;
   });
+}
+
+/**
+ * Cut tile `index` out of a packed sheet. Kenney art faces up, while the game
+ * treats angle 0 as facing right, so tiles are turned 90° clockwise here and all
+ * draw code stays the same. `scale` is a whole-number nearest-neighbour upscale.
+ */
+function cutTile(sheet: HTMLImageElement, tile: number, cols: number, index: number, scale = 1, rotate = true): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = c.height = tile * scale;
+  const ctx = c.getContext('2d')!;
+  ctx.imageSmoothingEnabled = false;
+  ctx.translate(c.width / 2, c.height / 2);
+  if (rotate) ctx.rotate(Math.PI / 2);
+  const sx = (index % cols) * tile, sy = Math.floor(index / cols) * tile;
+  ctx.drawImage(sheet, sx, sy, tile, tile, -c.width / 2, -c.height / 2, c.width, c.height);
+  return c;
+}
+
+const PACK = `${import.meta.env.BASE_URL}assets/kenney-pixel-shmup/`;
+
+/**
+ * Kenney "Pixel Shmup" (CC0) replaces ships, aliens, boss, shots and explosions.
+ * Asteroids and scrap stay procedural (the pack has none). Falls back to the
+ * baked sprites if the sheets fail to load.
+ */
+export async function loadPackSprites(base: SpriteBank): Promise<SpriteBank> {
+  try {
+    const [ships, tiles] = await Promise.all([
+      loadImage(`${PACK}ships_packed.png`),
+      loadImage(`${PACK}tiles_packed.png`),
+    ]);
+    const ship = (i: number, scale = 1) => cutTile(ships, 32, 4, i, scale);
+    const tile = (i: number, rotate = true) => cutTile(tiles, 16, 12, i, 1, rotate);
+    return {
+      ...base,
+      ship: { interceptor: ship(4), striker: ship(0), scout: ship(8) },
+      alien: { drifter: ship(10), gunner: ship(5), bomber: ship(7), splitter: ship(2) },
+      boss: ship(14, 2),
+      shot: tile(0),
+      critShot: tile(2),
+      boom: [4, 5, 6, 7, 8].map((i) => tile(i, false)),
+      aliensFaceHeading: true,
+    };
+  } catch {
+    return base;
+  }
 }

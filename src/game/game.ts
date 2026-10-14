@@ -14,6 +14,9 @@ type State = 'title' | 'hangar' | 'playing' | 'upgrade' | 'paused' | 'over';
 
 interface Star { x: number; y: number; speed: number; color: string }
 interface Popup { x: number; y: number; text: string; color: string; t: number }
+interface Boom { x: number; y: number; t: number; big: boolean }
+
+const BOOM_TIME = 0.35;
 
 const TITLE_MENU = ['LAUNCH', 'HANGAR'] as const;
 // Screens that pop up mid-action ignore confirms briefly, so a player tapping
@@ -44,7 +47,9 @@ export class Game {
   private hitstop = 0;
   private flash = { color: C.white as string, t: 0, max: 1 };
   private popups: Popup[] = [];
+  private booms: Boom[] = [];
   private muzzle = 0;
+  private whiteCache = new Map<Sprite, HTMLCanvasElement>();
 
   constructor(private screen: Screen, private input: Input) {
     this.audio.muted = this.save.muted;
@@ -57,6 +62,12 @@ export class Game {
     }
     window.addEventListener('keydown', () => this.audio.unlock());
     window.addEventListener('mousedown', () => this.audio.unlock());
+  }
+
+  /** Swap in a sprite bank (e.g. once the Kenney sheets finish loading). */
+  setSprites(bank: SpriteBank): void {
+    this.sprites = bank;
+    this.whiteCache.clear();
   }
 
   private updateMusic(): void {
@@ -88,6 +99,8 @@ export class Game {
     this.muzzle = Math.max(0, this.muzzle - dt);
     for (const p of this.popups) { p.t -= dt; p.y -= 14 * dt; }
     this.popups = this.popups.filter((p) => p.t > 0);
+    for (const b of this.booms) b.t -= dt;
+    this.booms = this.booms.filter((b) => b.t > 0);
     this.checkCheats(inp.typed);
     if (inp.pressed('mute')) {
       this.audio.muted = this.save.muted = !this.save.muted;
@@ -208,6 +221,7 @@ export class Game {
         case 'pickup': this.audio.play('pickup'); break;
         case 'explode':
           this.audio.play(e.big ? 'bigExplode' : 'explode');
+          this.booms.push({ x: e.x, y: e.y, t: BOOM_TIME, big: e.big });
           this.shake = Math.max(this.shake, e.big ? 4 : 2);
           if (e.big) this.hitstop = Math.max(this.hitstop, 0.04);
           break;
@@ -295,17 +309,42 @@ export class Game {
     if (this.save.muted) drawText(ctx, 'MUTED', W / 2, H - 8, C.steel, 1, 'center');
   }
 
-  private drawSprite(sp: Sprite, x: number, y: number, angle = 0): void {
+
+  private drawSprite(sp: Sprite, x: number, y: number, angle = 0, scale = 1): void {
     const ctx = this.screen.ctx;
     const prev = ctx.getTransform();
     ctx.translate(Math.round(x), Math.round(y));
     if (angle) ctx.rotate(angle);
+    if (scale !== 1) ctx.scale(scale, scale);
     ctx.drawImage(sp, -Math.floor(sp.width / 2), -Math.floor(sp.height / 2));
     ctx.setTransform(prev);
   }
 
+  /** White silhouette of a sprite, cached, used for the hit flash. */
+  private whiteOf(sp: Sprite): Sprite {
+    let out = this.whiteCache.get(sp);
+    if (!out) {
+      out = document.createElement('canvas');
+      out.width = sp.width; out.height = sp.height;
+      const c = out.getContext('2d')!;
+      c.drawImage(sp, 0, 0);
+      c.globalCompositeOperation = 'source-in';
+      c.fillStyle = C.white;
+      c.fillRect(0, 0, out.width, out.height);
+      this.whiteCache.set(sp, out);
+    }
+    return out;
+  }
+
+  /** Snap an angle to `steps` directions so rotated pixel art stays chunky. */
+  private snap(angle: number, steps: number): number {
+    const k = (Math.PI * 2) / steps;
+    return Math.round(angle / k) * k;
+  }
+
   private drawWorld(w: World): void {
     const ctx = this.screen.ctx;
+    const S = this.sprites;
     for (const p of w.particles) {
       ctx.globalAlpha = Math.max(0, p.life / p.max);
       ctx.fillStyle = p.color;
@@ -313,7 +352,7 @@ export class Game {
     }
     ctx.globalAlpha = 1;
 
-    // Spawn warnings: a blinking chevron marker at the edge where an enemy is about to appear.
+    // Spawn warnings: a blinking marker at the edge where an enemy is about to appear.
     for (const tg of w.telegraphs) {
       if (Math.floor(tg.t * 12) % 2) continue;
       const x = Math.round(Math.min(W - 4, Math.max(3, tg.x))), y = Math.round(Math.min(H - 4, Math.max(3, tg.y)));
@@ -325,30 +364,32 @@ export class Game {
 
     for (const p of w.pickups) {
       if (p.life < 2 && Math.floor(this.t * 10) % 2 === 0) continue; // blink before despawning
-      this.drawSprite(this.sprites.scrap, p.x, p.y);
+      this.drawSprite(S.scrap, p.x, p.y);
     }
     for (const a of w.asteroids) {
-      // Snap rotation to 8 steps: keeps the chunky pixel look instead of smooth rotation blur.
-      const rot = Math.round(a.rot / (Math.PI / 4)) * (Math.PI / 4);
-      this.drawSprite(this.sprites.asteroid[a.tier][a.variant], a.x, a.y, rot);
-      if (a.flash > 0) this.flashBox(a.x, a.y, a.r);
+      const sp = S.asteroid[a.tier][a.variant];
+      const rot = this.snap(a.rot, 8);
+      this.drawSprite(a.flash > 0 ? this.whiteOf(sp) : sp, a.x, a.y, rot);
     }
     for (const al of w.aliens) {
-      const bob = Math.round(Math.sin(al.t * 4));
-      const sp = this.sprites.alien[al.kind];
-      if (al.mini) {
-        ctx.drawImage(sp, Math.round(al.x - sp.width / 4), Math.round(al.y - sp.height / 4 + bob), sp.width / 2, sp.height / 2);
-      } else {
-        this.drawSprite(sp, al.x, al.y + bob);
-      }
-      if (al.flash > 0) this.flashBox(al.x, al.y + bob, al.r);
+      const sp = S.alien[al.kind];
+      // Ship art turns to face where it's flying; the original critter art bobs instead.
+      const angle = S.aliensFaceHeading ? this.snap(Math.atan2(al.vy, al.vx), 16) : 0;
+      const bob = S.aliensFaceHeading ? 0 : Math.round(Math.sin(al.t * 4));
+      this.drawSprite(al.flash > 0 ? this.whiteOf(sp) : sp, al.x, al.y + bob, angle, al.mini ? 0.5 : 1);
     }
     if (w.boss) {
       const b = w.boss;
-      this.drawSprite(this.sprites.boss, b.x, b.y + Math.round(Math.sin(b.t * 3)));
-      if (b.flash > 0) this.flashBox(b.x, b.y, b.r * 0.7);
+      const sp = S.boss;
+      const angle = S.aliensFaceHeading ? Math.PI / 2 : 0; // pack art faces down at the player
+      this.drawSprite(b.flash > 0 ? this.whiteOf(sp) : sp, b.x, b.y + Math.round(Math.sin(b.t * 3)), angle);
     }
     for (const b of w.bullets) {
+      const shot = b.hostile ? undefined : b.crit ? S.critShot : S.shot;
+      if (shot) {
+        this.drawSprite(shot, b.x, b.y, this.snap(Math.atan2(b.vy, b.vx), 16));
+        continue;
+      }
       const color = b.hostile ? C.red : b.crit ? C.white : C.yellow;
       // Short trail: two fading pixels behind the bullet along its velocity.
       ctx.fillStyle = color;
@@ -357,20 +398,36 @@ export class Game {
         ctx.fillRect(Math.floor(b.x - b.vx * 0.012 * i), Math.floor(b.y - b.vy * 0.012 * i), 1, 1);
       }
       ctx.globalAlpha = 1;
-      ctx.fillRect(Math.floor(b.x - 1), Math.floor(b.y - 1), 2, 2);
+      if (b.hostile) {
+        // Enemy shots: 3px red with a hot core so they read against the dark background.
+        ctx.fillRect(Math.floor(b.x - 1), Math.floor(b.y - 1), 3, 3);
+        ctx.fillStyle = C.yellow;
+        ctx.fillRect(Math.floor(b.x), Math.floor(b.y), 1, 1);
+      } else {
+        ctx.fillRect(Math.floor(b.x - 1), Math.floor(b.y - 1), 2, 2);
+      }
+    }
+
+    // Explosions: pack animation frames (falls back to particles only).
+    if (S.boom) {
+      for (const bm of this.booms) {
+        const f = Math.min(S.boom.length - 1, Math.floor((1 - bm.t / BOOM_TIME) * S.boom.length));
+        this.drawSprite(S.boom[f], bm.x, bm.y, 0, bm.big ? 2 : 1);
+      }
     }
 
     const s = w.ship;
     if (!w.over) {
-      const rot = Math.round(s.angle / (Math.PI / 8)) * (Math.PI / 8);
-      this.drawSprite(this.sprites.ship[s.id], s.x, s.y, rot);
+      const sp = S.ship[s.id];
+      this.drawSprite(sp, s.x, s.y, this.snap(s.angle, 16));
+      const nose = Math.max(7, sp.width / 2 - 4);
       if (this.muzzle > 0) {
         ctx.fillStyle = C.white;
-        ctx.fillRect(Math.round(s.x + Math.cos(s.angle) * 7) - 1, Math.round(s.y + Math.sin(s.angle) * 7) - 1, 3, 3);
+        ctx.fillRect(Math.round(s.x + Math.cos(s.angle) * nose) - 1, Math.round(s.y + Math.sin(s.angle) * nose) - 1, 3, 3);
       }
       // Shield bubble while invulnerable, flickering out as it expires.
-      if (s.invuln > 0 && (s.invuln > 0.5 || Math.floor(this.t * 20) % 2)) this.ring(s.x, s.y, 9, C.cyan);
-      if (w.godMode) this.ring(s.x, s.y, 11, C.yellow);
+      if (s.invuln > 0 && (s.invuln > 0.5 || Math.floor(this.t * 20) % 2)) this.ring(s.x, s.y, nose + 3, C.cyan);
+      if (w.godMode) this.ring(s.x, s.y, nose + 5, C.yellow);
     }
 
     for (const p of this.popups) drawText(ctx, p.text, p.x, p.y, p.t < 0.2 && Math.floor(this.t * 20) % 2 ? C.orange : p.color, 1, 'center');
@@ -385,12 +442,6 @@ export class Game {
       const a = (i / n) * Math.PI * 2;
       ctx.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r), 1, 1);
     }
-  }
-
-  private flashBox(x: number, y: number, r: number): void {
-    const ctx = this.screen.ctx;
-    ctx.fillStyle = C.white;
-    ctx.fillRect(Math.round(x - r), Math.round(y - r), Math.round(r * 2), Math.round(r * 2));
   }
 
   private drawHud(w: World): void {
@@ -428,35 +479,37 @@ export class Game {
     const id = SHIP_ORDER[this.shipIndex];
     const st = SHIPS[id];
     const unlocked = shipUnlocked(this.save.meta, id);
-    const cx = W / 2, cy = 95;
+    const cx = W / 2, cy = 120;
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.scale(3, 3);
+    const zoom = this.sprites.ship[id].width > 16 ? 2 : 3; // pack ships are 32px, the fallback art is ~12px
+    ctx.scale(zoom, zoom);
     ctx.rotate(-Math.PI / 2);
     if (!unlocked) ctx.globalAlpha = 0.25;
     const sp = this.sprites.ship[id];
     ctx.drawImage(sp, -Math.floor(sp.width / 2), -Math.floor(sp.height / 2));
     ctx.restore();
-    drawText(ctx, '<', cx - 50, cy - 4, C.steel, 2, 'center');
-    drawText(ctx, '>', cx + 50, cy - 4, C.steel, 2, 'center');
-    drawText(ctx, st.name, cx, cy + 24, unlocked ? C.white : C.steel, 2, 'center');
+    drawText(ctx, '<', cx - 70, cy - 4, C.steel, 2, 'center');
+    drawText(ctx, '>', cx + 70, cy - 4, C.steel, 2, 'center');
+    drawText(ctx, st.name, cx, cy + 42, unlocked ? C.white : C.steel, 2, 'center');
     if (unlocked) {
-      drawText(ctx, st.blurb, cx, cy + 38, C.steel, 1, 'center');
-      this.statBar('SPEED', st.maxSpeed / 160, cx, cy + 48);
-      this.statBar('HULL', st.hull / 5, cx, cy + 56);
-      this.statBar('FIRE RATE', 0.85 / st.fireRateMul, cx, cy + 64);
+      drawText(ctx, st.blurb, cx, cy + 56, C.steel, 1, 'center');
+      this.statBar('SPEED', st.maxSpeed / 190, cx, cy + 68);
+      this.statBar('HULL', st.hull / 5, cx, cy + 76);
+      this.statBar('FIRE RATE', 0.85 / st.fireRateMul, cx, cy + 84);
     } else {
-      drawText(ctx, 'LOCKED - BUY BLUEPRINT IN HANGAR', cx, cy + 40, C.red, 1, 'center');
+      drawText(ctx, 'LOCKED - BUY BLUEPRINT IN HANGAR', cx, cy + 58, C.red, 1, 'center');
     }
 
     TITLE_MENU.forEach((label, i) => {
       const sel = i === this.menuIndex;
       const text = sel ? `> ${label} <` : label;
-      drawText(ctx, text, W / 2, 185 + i * 14, sel ? C.yellow : C.steel, 2, 'center');
+      drawText(ctx, text, W / 2, 240 + i * 16, sel ? C.yellow : C.steel, 2, 'center');
     });
     drawText(ctx, 'WASD: MOVE   CLICK: FIRE   SHIFT: BOOST   1-3: WEAPON   M: MUTE', W / 2, H - 40, C.steel, 1, 'center');
     drawText(ctx, 'ARROWS: SHIP / MENU   ENTER: SELECT', W / 2, H - 28, C.steel, 1, 'center');
     drawText(ctx, `SCRAP ${this.save.scrap}   BEST ${this.save.highScore}   WAVE ${this.save.bestWave}`, W / 2, H - 14, C.cyan, 1, 'center');
+    drawText(ctx, 'ART: KENNEY.NL', W - 6, H - 10, '#3a3660', 1, 'right');
   }
 
   private drawHangar(): void {

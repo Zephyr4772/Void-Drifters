@@ -2,8 +2,8 @@
  * Pixel-perfect screen: the game draws to a fixed low-res buffer that is
  * scaled up by the largest whole-number factor that fits the window.
  */
-export const VIEW_W = 480;
-export const VIEW_H = 270;
+export const VIEW_W = 640;
+export const VIEW_H = 360;
 
 export class Screen {
   readonly ctx: CanvasRenderingContext2D;
