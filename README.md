@@ -3,6 +3,8 @@
 A pixel-art roguelite arena shooter for the browser, rebuilt from the original
 single-file prototype (preserved in [`legacy/`](legacy/)).
 
+**▶ Play it in your browser: https://zephyr4772.github.io/Void-Drifters/**
+
 ## Run it
 
 ```bash
@@ -40,7 +42,8 @@ legacy/       the original index.html game and its assets
 - [ ] Port the remaining legacy content: laser weapon, lore easter egg; more boss types and enemy variety
 - [x] **Phase 3a:** juice (hit-stop, flashes, trails, crit popups, spawn warnings) and a procedural chiptune soundtrack
 - [x] **Phase 3b:** Kenney "Pixel Shmup" CC0 art for ships, aliens, boss, shots and explosions; 640x360 view
-- [ ] **Phase 4:** itch.io / GitHub Pages release
+- [x] **Phase 4:** GitHub Pages release, deployed automatically from `main` by `.github/workflows/deploy.yml`
+- [ ] itch.io page
 
 ## Credits
 
