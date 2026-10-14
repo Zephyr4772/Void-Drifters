@@ -12,7 +12,7 @@ npm test           # simulation tests
 npm run build      # static build in dist/, ready for itch.io or GitHub Pages
 ```
 
-**Controls:** WASD / arrows to move · Shift to boost · left click to fire · Space reserved for a ship special (coming soon) · 1-3 to switch weapon · P / Esc to pause.
+**Controls:** WASD / arrows to move · Shift to boost · left click to fire · Space reserved for a ship special (coming soon) · 1-3 to switch weapon · M to mute · P / Esc to pause.
 
 ## How a run works
 
@@ -38,5 +38,6 @@ legacy/       the original index.html game and its assets
 - [x] **Phase 1:** Vite + TypeScript rebuild, fixed timestep, real ship stats, wave director, high scores
 - [x] **Phase 2:** roguelite layer: scrap, upgrade picks between waves, Hangar meta shop, ship unlocks, bosses
 - [ ] Port the remaining legacy content: laser weapon, lore easter egg; more boss types and enemy variety
-- [ ] **Phase 3:** juice (hit-stop, better particles), CC0 art packs and music
+- [x] **Phase 3a:** juice (hit-stop, flashes, trails, crit popups, spawn warnings) and a procedural chiptune soundtrack
+- [ ] **Phase 3b:** CC0 pixel-art packs to replace the placeholder sprites
 - [ ] **Phase 4:** itch.io / GitHub Pages release

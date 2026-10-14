@@ -6,7 +6,7 @@ import { circlesHit, clamp, Rng, wrap } from '../core/math';
 import { VIEW_H as H, VIEW_W as W } from '../render/screen';
 import { ASTEROID_SIZES, PALETTE, type AlienKind, type ShipId } from '../render/sprites';
 import { ALIENS, ASTEROID_HP, ASTEROID_SCORE, SHIPS, WEAPONS, type WeaponId } from './data';
-import type { Alien, Asteroid, Boss, Bullet, Particle, Pickup, Ship, WorldEvent } from './entities';
+import type { Alien, Asteroid, Boss, Bullet, Particle, Pickup, Ship, Telegraph, WorldEvent } from './entities';
 import { runConfigFromMeta, type RunConfig } from './meta';
 import { rollUpgrades, type RunMods, type UpgradeDef, type UpgradeTarget } from './upgrades';
 import { isBossWave, planWave, type SpawnOrder } from './waves';
@@ -19,6 +19,7 @@ export interface Controls {
 }
 
 const SPAWN_GAP = 0.55;
+const TELEGRAPH_TIME = 0.8; // warning before an enemy appears at the edge
 const WAVE_BREAK = 1.2;
 const COMBO_WINDOW = 2.5;
 const ALIEN_COLOR: Record<AlienKind, string> = {
@@ -38,6 +39,7 @@ export class World {
   aliens: Alien[] = [];
   boss: Boss | null = null;
   pickups: Pickup[] = [];
+  telegraphs: Telegraph[] = [];
   particles: Particle[] = [];
   events: WorldEvent[] = [];
 
@@ -72,7 +74,8 @@ export class World {
   }
 
   get fieldClear(): boolean {
-    return this.asteroids.length === 0 && this.aliens.length === 0 && !this.boss && this.spawnQueue.length === 0;
+    return this.asteroids.length === 0 && this.aliens.length === 0 && !this.boss
+      && this.spawnQueue.length === 0 && this.telegraphs.length === 0;
   }
 
   get comboMult(): number {
@@ -84,6 +87,7 @@ export class World {
     this.time += dt;
     if (!this.over) this.updateShip(dt, c);
     this.updateWaves(dt);
+    this.updateTelegraphs(dt);
     this.updateAsteroids(dt);
     this.updateAliens(dt);
     this.updateBoss(dt);
@@ -148,7 +152,7 @@ export class World {
         x: s.x + Math.cos(back) * 5, y: s.y + Math.sin(back) * 5,
         vx: Math.cos(back + this.rng.range(-0.4, 0.4)) * 40 + s.vx * 0.3,
         vy: Math.sin(back + this.rng.range(-0.4, 0.4)) * 40 + s.vy * 0.3,
-        life: 0.25, max: 0.25, color: c.boost ? PALETTE.cyan : PALETTE.orange,
+        life: 0.25, max: 0.25, color: c.boost ? PALETTE.cyan : PALETTE.orange, size: 1,
       });
     }
 
@@ -175,7 +179,7 @@ export class World {
         y: s.y + Math.sin(s.angle) * 6 + ny * p.side,
         vx: Math.cos(a) * w.speed * m.bulletSpeedMul, vy: Math.sin(a) * w.speed * m.bulletSpeedMul,
         r: crit > 1 ? 2 : 1.5, life: 0.9, damage: w.damage * m.damageMul * crit, hostile: false,
-        pierce: m.pierce, lastHit: null,
+        pierce: m.pierce, lastHit: null, crit: crit > 1,
       });
     }
     this.events.push({ type: 'shoot' });
@@ -201,11 +205,19 @@ export class World {
     }
     if (this.spawnQueue.length && (this.spawnT -= dt) <= 0) {
       const order = this.spawnQueue.shift()!;
-      if (order.what === 'asteroid') this.spawnAsteroid(2);
-      else if (order.what === 'boss') this.spawnBoss();
-      else this.spawnAlien(order.kind);
+      if (order.what === 'boss') this.spawnBoss();
+      else this.telegraphs.push({ ...this.edgePoint(), t: TELEGRAPH_TIME, order });
       this.spawnT = SPAWN_GAP;
     }
+  }
+
+  private updateTelegraphs(dt: number): void {
+    for (const tg of this.telegraphs) {
+      if ((tg.t -= dt) > 0) continue;
+      if (tg.order.what === 'asteroid') this.spawnAsteroid(2, tg);
+      else this.spawnAlien(tg.order.kind, tg);
+    }
+    this.telegraphs = this.telegraphs.filter((tg) => tg.t > 0);
   }
 
   private startWave(): void {
@@ -398,6 +410,7 @@ export class World {
       if (target === this.boss) this.damageBoss(b.damage);
       else if ('tier' in target) this.damageAsteroid(target as Asteroid, b.damage);
       else this.damageAlien(target as Alien, b.damage);
+      if (b.crit) this.events.push({ type: 'crit', x: b.x, y: b.y, amount: Math.round(b.damage) });
       b.lastHit = target;
       if (b.pierce-- <= 0) b.life = 0;
     }
@@ -413,7 +426,7 @@ export class World {
   private damageAsteroid(a: Asteroid, dmg: number): void {
     a.hp -= dmg; a.flash = 0.06;
     if (a.hp > 0) { this.events.push({ type: 'hit' }); return; }
-    this.burst(a.x, a.y, PALETTE.rock, 6 + a.tier * 6);
+    this.burst(a.x, a.y, PALETTE.rock, 6 + a.tier * 6, 2 + a.tier * 3);
     this.addScore(ASTEROID_SCORE[a.tier]);
     this.events.push({ type: 'explode', big: a.tier === 2 });
     if (a.tier === 0 && this.rng.next() < 0.35) this.dropScrap(a.x, a.y, 1);
@@ -427,7 +440,7 @@ export class World {
   private damageAlien(al: Alien, dmg: number): void {
     al.hp -= dmg; al.flash = 0.06;
     if (al.hp > 0) { this.events.push({ type: 'hit' }); return; }
-    this.burst(al.x, al.y, ALIEN_COLOR[al.kind], 14);
+    this.burst(al.x, al.y, ALIEN_COLOR[al.kind], 14, 4);
     this.addScore(ALIENS[al.kind].score * (al.mini ? 0.5 : 1));
     this.events.push({ type: 'explode', big: al.kind === 'bomber' });
     this.dropScrap(al.x, al.y, al.mini ? 1 : ALIENS[al.kind].cost);
@@ -446,7 +459,7 @@ export class World {
     b.hp -= dmg; b.flash = 0.05;
     this.events.push({ type: 'hit' });
     if (b.hp > 0) return;
-    this.burst(b.x, b.y, PALETTE.red, 60);
+    this.burst(b.x, b.y, PALETTE.red, 60, 20);
     this.burst(b.x, b.y, PALETTE.yellow, 40);
     this.addScore(2000 * b.tier);
     this.dropScrap(b.x, b.y, 10 + b.tier * 4, 3);
@@ -487,11 +500,14 @@ export class World {
     this.score += Math.round(base * this.comboMult);
   }
 
-  private burst(x: number, y: number, color: string, n: number): void {
-    for (let i = 0; i < n; i++) {
-      const a = this.rng.range(0, Math.PI * 2), sp = this.rng.range(20, 110);
-      const life = this.rng.range(0.25, 0.7);
-      this.particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life, max: life, color });
+  /** Spray of sparks; `debris` adds slower 2px chunks that linger. */
+  private burst(x: number, y: number, color: string, n: number, debris = 0): void {
+    for (let i = 0; i < n + debris; i++) {
+      const chunk = i >= n;
+      const a = this.rng.range(0, Math.PI * 2);
+      const sp = chunk ? this.rng.range(15, 50) : this.rng.range(20, 110);
+      const life = chunk ? this.rng.range(0.6, 1.2) : this.rng.range(0.25, 0.7);
+      this.particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life, max: life, color, size: chunk ? 2 : 1 });
     }
   }
 }
