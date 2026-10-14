@@ -80,7 +80,7 @@ export type WorldEvent =
   | { type: 'shoot' }
   | { type: 'hit' }
   | { type: 'crit'; x: number; y: number; amount: number }
-  | { type: 'explode'; big: boolean }
+  | { type: 'explode'; big: boolean; x: number; y: number }
   | { type: 'playerHit' }
   | { type: 'pickup' }
   | { type: 'waveStart'; wave: number; boss: boolean }

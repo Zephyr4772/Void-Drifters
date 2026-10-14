@@ -236,7 +236,7 @@ export class World {
         : side === 1 ? { x: W - 1, y: this.rng.range(0, H) }
         : side === 2 ? { x: this.rng.range(0, W), y: H - 1 }
         : { x: 0, y: this.rng.range(0, H) };
-      if (Math.hypot(p.x - this.ship.x, p.y - this.ship.y) > 90) return p;
+      if (Math.hypot(p.x - this.ship.x, p.y - this.ship.y) > 110) return p;
     }
     return { x: 0, y: 0 };
   }
@@ -256,7 +256,7 @@ export class World {
     const p = at ?? this.edgePoint();
     const st = ALIENS[kind];
     this.aliens.push({
-      kind, x: p.x, y: p.y, vx: 0, vy: 0, r: mini ? 3 : st.r,
+      kind, x: p.x, y: p.y, vx: 0, vy: 0, r: mini ? 4 : st.r,
       hp: mini ? st.hp / 2 : st.hp, t: this.rng.range(0, 3), fireT: this.rng.range(1.2, 2.4), flash: 0, mini,
     });
   }
@@ -265,7 +265,7 @@ export class World {
     const tier = Math.max(1, Math.floor(this.wave / 5));
     const hp = 500 + (tier - 1) * 350;
     this.boss = {
-      x: W / 2, y: -20, vx: 0, vy: 40, r: 11, hp, maxHp: hp,
+      x: W / 2, y: -30, vx: 0, vy: 40, r: 20, hp, maxHp: hp,
       t: 0, attackT: 2, pattern: 0, flash: 0, tier,
     };
   }
@@ -313,8 +313,8 @@ export class World {
     b.t += dt;
     b.flash = Math.max(0, b.flash - dt);
     // Drift along a slow figure-eight over the arena.
-    const tx = W / 2 + Math.sin(b.t * 0.45) * 150;
-    const ty = H / 2 - 30 + Math.sin(b.t * 0.9) * 50;
+    const tx = W / 2 + Math.sin(b.t * 0.45) * 200;
+    const ty = H / 2 - 30 + Math.sin(b.t * 0.9) * 70;
     const k = 1 - Math.pow(0.2, dt);
     b.vx += ((tx - b.x) * 0.9 - b.vx) * k;
     b.vy += ((ty - b.y) * 0.9 - b.vy) * k;
@@ -428,7 +428,7 @@ export class World {
     if (a.hp > 0) { this.events.push({ type: 'hit' }); return; }
     this.burst(a.x, a.y, PALETTE.rock, 6 + a.tier * 6, 2 + a.tier * 3);
     this.addScore(ASTEROID_SCORE[a.tier]);
-    this.events.push({ type: 'explode', big: a.tier === 2 });
+    this.events.push({ type: 'explode', big: a.tier === 2, x: a.x, y: a.y });
     if (a.tier === 0 && this.rng.next() < 0.35) this.dropScrap(a.x, a.y, 1);
     if (a.tier > 0) {
       const t = (a.tier - 1) as 0 | 1;
@@ -442,7 +442,7 @@ export class World {
     if (al.hp > 0) { this.events.push({ type: 'hit' }); return; }
     this.burst(al.x, al.y, ALIEN_COLOR[al.kind], 14, 4);
     this.addScore(ALIENS[al.kind].score * (al.mini ? 0.5 : 1));
-    this.events.push({ type: 'explode', big: al.kind === 'bomber' });
+    this.events.push({ type: 'explode', big: al.kind === 'bomber', x: al.x, y: al.y });
     this.dropScrap(al.x, al.y, al.mini ? 1 : ALIENS[al.kind].cost);
     if (al.kind === 'bomber') {
       // Ring of shrapnel: punishes killing it at point-blank range.
@@ -467,7 +467,7 @@ export class World {
     // Clear the boss's bullets so the victory doesn't kill you.
     this.bullets = this.bullets.filter((x) => !x.hostile);
     this.boss = null;
-    this.events.push({ type: 'explode', big: true }, { type: 'bossDown' });
+    this.events.push({ type: 'explode', big: true, x: b.x, y: b.y }, { type: 'bossDown' });
   }
 
   private hurtPlayer(): void {
