@@ -20,7 +20,10 @@ export class Screen {
   }
 
   private fit(): void {
-    const s = Math.max(1, Math.floor(Math.min(innerWidth / VIEW_W, innerHeight / VIEW_H)));
+    // Whole-number scaling keeps pixels crisp; below 2x, scale fractionally
+    // to fill the window instead of leaving the game tiny and unreadable.
+    const fit = Math.min(innerWidth / VIEW_W, innerHeight / VIEW_H);
+    const s = fit >= 2 ? Math.floor(fit) : fit;
     this.canvas.style.width = `${VIEW_W * s}px`;
     this.canvas.style.height = `${VIEW_H * s}px`;
   }

@@ -1,7 +1,7 @@
-/** Keyboard state with per-tick "pressed this tick" edges. */
+/** Keyboard + mouse state with per-tick "pressed this tick" edges. */
 export type Action =
-  | 'up' | 'down' | 'left' | 'right' | 'boost' | 'fire'
-  | 'pause' | 'confirm' | 'weapon1' | 'weapon2' | 'weapon3';
+  | 'up' | 'down' | 'left' | 'right' | 'boost' | 'fire' | 'special'
+  | 'pause' | 'confirm' | 'reroll' | 'weapon1' | 'weapon2' | 'weapon3';
 
 const BINDINGS: Record<string, Action> = {
   KeyW: 'up', ArrowUp: 'up',
@@ -9,10 +9,16 @@ const BINDINGS: Record<string, Action> = {
   KeyA: 'left', ArrowLeft: 'left',
   KeyD: 'right', ArrowRight: 'right',
   ShiftLeft: 'boost', ShiftRight: 'boost',
-  Space: 'fire',
+  Space: 'special',
   KeyP: 'pause', Escape: 'pause',
   Enter: 'confirm',
+  KeyR: 'reroll',
   Digit1: 'weapon1', Digit2: 'weapon2', Digit3: 'weapon3',
+};
+
+/** Mouse buttons by MouseEvent.button (0 = left). */
+const MOUSE_BINDINGS: Record<number, Action> = {
+  0: 'fire',
 };
 
 export class Input {
@@ -29,14 +35,28 @@ export class Input {
       const a = BINDINGS[e.code];
       if (!a) return;
       e.preventDefault();
-      if (!this.down.has(a)) this.queued.add(a);
-      this.down.add(a);
+      this.press(a);
     });
     target.addEventListener('keyup', (e) => {
       const a = BINDINGS[e.code];
       if (a) this.down.delete(a);
     });
+    target.addEventListener('mousedown', (e) => {
+      const a = MOUSE_BINDINGS[e.button];
+      if (!a) return;
+      e.preventDefault(); // no text selection or focus shifts mid-fight
+      this.press(a);
+    });
+    target.addEventListener('mouseup', (e) => {
+      const a = MOUSE_BINDINGS[e.button];
+      if (a) this.down.delete(a);
+    });
     target.addEventListener('blur', () => this.down.clear());
+  }
+
+  private press(a: Action): void {
+    if (!this.down.has(a)) this.queued.add(a);
+    this.down.add(a);
   }
 
   /** Call once at the start of each simulation tick. */

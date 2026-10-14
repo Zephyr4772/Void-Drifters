@@ -2,14 +2,25 @@
  * Wave director. Replaces the legacy spawn timers (12-35 s gaps between
  * aliens) with discrete waves: each wave has a threat budget that buys
  * enemies, spawns are staggered, and the next wave starts once the field is clear.
+ * Every 5th wave is a boss wave with a light escort.
  */
 import type { AlienKind } from '../render/sprites';
 import type { Rng } from '../core/math';
 import { ALIENS } from './data';
 
-export type SpawnOrder = { what: 'asteroid' } | { what: 'alien'; kind: AlienKind };
+export type SpawnOrder = { what: 'asteroid' } | { what: 'alien'; kind: AlienKind } | { what: 'boss' };
+
+export const BOSS_EVERY = 5;
+export const isBossWave = (wave: number) => wave > 0 && wave % BOSS_EVERY === 0;
 
 export function planWave(wave: number, rng: Rng): SpawnOrder[] {
+  if (isBossWave(wave)) {
+    const escorts = Math.min(1 + Math.floor(wave / 10), 4);
+    const orders: SpawnOrder[] = [{ what: 'boss' }];
+    for (let i = 0; i < escorts; i++) orders.push({ what: 'alien', kind: 'drifter' });
+    return orders;
+  }
+
   const orders: SpawnOrder[] = [];
   const rocks = Math.min(2 + Math.floor(wave / 2), 6);
   for (let i = 0; i < rocks; i++) orders.push({ what: 'asteroid' });
