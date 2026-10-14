@@ -1,42 +1,34 @@
 # Void Drifters
 
-**A browser space-combat game that is one HTML file.** No build step, no bundler,
-no dependencies — all game logic, rendering and state live in `index.html`
-(~200 KB), with sprite art loaded alongside it.
+A pixel-art roguelite arena shooter for the browser, rebuilt from the original
+single-file prototype (preserved in [`legacy/`](legacy/)).
 
-## Play it
-
-Clone and open `index.html` in a browser. That's the whole process.
+## Run it
 
 ```bash
-git clone https://github.com/Zephyr4772/Void-Drifters.git
-cd Void-Drifters
-# open index.html
+npm install
+npm run dev        # http://localhost:5173
+npm test           # simulation tests
+npm run build      # static build in dist/, ready for itch.io or GitHub Pages
 ```
 
-Or serve it, if your browser blocks local asset loading:
+**Controls:** WASD / arrows to move · Shift to boost · Space to fire · 1-3 to switch weapon · P / Esc to pause.
 
-```bash
-python -m http.server 8000     # then visit http://localhost:8000
-```
-
-## Why one file
-
-A constraint for its own sake: no tooling meant no setup to fight, and the whole
-game stays greppable. The trade-off is that `index.html` is a 200 KB file with
-everything in it — fine at this scale, and the reason you wouldn't do this for
-anything bigger.
-
-## Contents
+## Layout
 
 ```
-index.html      game loop, rendering, input, entities, state
-aliens/         enemy sprites
-spaceships/     player ship sprites
+src/core/     fixed-timestep loop, input, math + seeded RNG
+src/render/   480x270 pixel screen, baked pixel sprites, bitmap font
+src/audio/    synth sound effects
+src/game/     world simulation (DOM-free), waves, tuning data, saves, state machine
+tests/        Vitest: loop timing, wave planning, deterministic simulation
+legacy/       the original index.html game and its assets
 ```
 
-## Limitations
+## Roadmap
 
-- Desktop keyboard only — no touch controls.
-- No save state; no score persistence.
-- Untested outside recent Chrome and Firefox.
+- [x] **Phase 1:** Vite + TypeScript rebuild, fixed timestep, real ship stats, wave director, high scores
+- [ ] Port the remaining legacy content: laser weapon, powerups, fuel/shield, bosses, lore easter egg
+- [ ] **Phase 2:** roguelite layer, with upgrade picks between waves and permanent unlocks
+- [ ] **Phase 3:** juice (hit-stop, better particles), CC0 art packs and music
+- [ ] **Phase 4:** itch.io / GitHub Pages release
